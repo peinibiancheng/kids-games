@@ -26,10 +26,9 @@ window.addEventListener('resize', () => {
 });
 
 const matCache = new Map();
-function mat(color, opts){
-  const key = color + '|' + JSON.stringify(opts || {});
-  if(!matCache.has(key)) matCache.set(key, new THREE.MeshLambertMaterial(Object.assign({color, flatShading:true}, opts||{})));
-  return matCache.get(key);
+function mat(color){
+  if(!matCache.has(color)) matCache.set(color, new THREE.MeshLambertMaterial({color, flatShading:true}));
+  return matCache.get(color);
 }
 function add(parent, geo, color, x, y, z, opts){
   const m = new THREE.Mesh(geo, mat(color, opts));
@@ -45,6 +44,13 @@ function ball(p,r,c,x,y,z,o){ return add(p,new THREE.SphereGeometry(r,20,14),c,x
 function cyl(p,rt,rb,h,c,x,y,z,o){ return add(p,new THREE.CylinderGeometry(rt,rb,h,18),c,x,y,z,o); }
 function cone(p,r,h,c,x,y,z,o){ return add(p,new THREE.ConeGeometry(r,h,18),c,x,y,z,o); }
 function torus(p,r,tube,c,x,y,z,o){ return add(p,new THREE.TorusGeometry(r,tube,10,24),c,x,y,z,o); }
+function rodBetween(p,a,b,r,c){
+  const dir=new THREE.Vector3().subVectors(b,a), len=dir.length();
+  const m=cyl(p,r,r,len,c,0,0,0);
+  m.position.copy(a).addScaledVector(dir,.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.clone().normalize());
+  return m;
+}
 function newScene(bg){
   const s = new THREE.Scene();
   s.background = new THREE.Color(bg);
@@ -321,8 +327,8 @@ function buildFish(){
   box(s,5,.4,7,0xc98b5e,-8,.6,3);
   for(let i=0;i<3;i++) cyl(s,.22,.22,1.3,0xa96f48,-9.7+i*1.8,-.05,0,{cast:false});
   const peppa=pig({scale:1.05}); peppa.position.set(-8,.8,2); peppa.rotation.y=1.2; s.add(peppa);
-  cyl(s,.07,.07,6,0x8b5b3f,-6.6,2.9,0,{rot:[0,0,Math.PI/3]});
-  const tip=new THREE.Vector3(-3.6,5.4,-1);
+  const hand=new THREE.Vector3(-6.6,2.6,1.1), tip=new THREE.Vector3(-3.4,5.2,-1.6);
+  rodBetween(s,hand,tip,.07,0x8b5b3f);
   const bob=new THREE.Group();
   ball(bob,.26,0xff5b5b,0,.16,0); ball(bob,.26,0xffffff,0,-.12,0);
   cyl(bob,.04,.04,.6,0xffffff,0,.45,0,{cast:false});
@@ -435,6 +441,7 @@ function buildSlide(){
   let S={phase:'climb',climb:0,p:0,jump:0,vy:0,got:0};
   setHud('滑滑梯',''); setPrompt('点一下，往上爬！'); setCam(12,9,19, 0,3,0);
   const hud=()=>{ $('hud-extra').innerHTML='小星星：'+S.got+' / 5'; };
+  hud();
   return {
     s,
     update(dt){
@@ -476,7 +483,7 @@ function buildSkate(){
   const s=newScene(0xcdeeff); ground(s,0xeaf7ff);
   hill(s,-24,-26,18,0xffffff); hill(s,26,-30,20,0xe4f4ff);
   for(let i=0;i<5;i++) cloud(s,-26+i*13,11,-30,1.1);
-  const rink=new THREE.Mesh(new THREE.PlaneGeometry(60,80),mat(0xd9f2ff));
+  const rink=new THREE.Mesh(new THREE.PlaneGeometry(60,80),mat(0xbfe8ff));
   rink.rotation.x=-Math.PI/2; rink.position.y=.02; rink.receiveShadow=true; s.add(rink);
   [-16,16].forEach(x=>{ for(let i=0;i<5;i++) tree(s,x,-28+i*14,.85); });
   const peppa=pig({scale:1}); peppa.position.set(0,0,7); peppa.rotation.y=Math.PI; s.add(peppa);
@@ -487,7 +494,8 @@ function buildSkate(){
   }
   function makeFlake(ss){
     const g=new THREE.Group();
-    for(let i=0;i<3;i++) cyl(g,.04,.04,1.2,0xffffff,0,0,0,{rot:[0,i*Math.PI/3,Math.PI/2],cast:false});
+    for(let i=0;i<3;i++) cyl(g,.055,.055,1.2,0x4aa8ee,0,0,0,{rot:[0,i*Math.PI/3,Math.PI/2],cast:false});
+    ball(g,.16,0xffffff,0,0,0,{cast:false});
     g.position.y=1.7; ss.add(g); return g;
   }
   function makeObstacle(ss,type){
@@ -572,7 +580,7 @@ function buildMush(){
       M.active.forEach(a=>{
         a.life-=dt; a.age+=dt;
         const grow=Math.min(1,a.age*6)*(a.life<.4?a.life/.4:1);
-        a.g.scale.setScalar(Math.max(.01,grow));
+        a.g.scale.setScalar(Math.max(.01,grow)*1.25);
       });
       const gone=M.active.filter(a=>a.life<=0);
       gone.forEach(a=>a.g.visible=false);
@@ -639,6 +647,7 @@ function frame(){
     console.error(err);
   }
 }
+window.__P3D={ go:setState, get current(){ return currentGame; } };
 setState('title');
 requestAnimationFrame(frame);
 })();
