@@ -1,4 +1,4 @@
-/* 佩奇的快乐小游戏 3D 版 — 全部美术由 Three.js 基础几何体程序化生成 */
+/* 小羊的快乐小游戏 3D 版 — 全部美术由 Three.js 基础几何体程序化生成 */
 (function(){
 'use strict';
 
@@ -66,39 +66,51 @@ function newScene(bg){
 }
 function setCam(px,py,pz, tx,ty,tz){ camPos.set(px,py,pz); camTarget.set(tx,ty,tz); }
 
-/* ---------------- 程序化小猪角色 ---------------- */
-function pig(opts){
+/* ---------------- 程序化小羊角色（蓬松羊毛 + 奶油色脸） ---------------- */
+function lamb(opts){
   opts = opts || {};
-  const body = opts.body || 0xffb3d1, dress = opts.dress || 0xf3425c;
+  const face = opts.body || 0xf0d9c4, wool = 0xfffdf6, dress = opts.dress || 0xf3425c;
   const g = new THREE.Group();
-  const legL = cyl(g,.19,.19,.8,body,-.45,.4,0);
-  const legR = cyl(g,.19,.19,.8,body,.45,.4,0);
-  ball(g,1,body,0,1.25,0,{scale:[.95,1.05,.82]});
+  const legL = cyl(g,.19,.19,.8,face,-.45,.4,0);
+  const legR = cyl(g,.19,.19,.8,face,.45,.4,0);
+  ball(g,.62,wool,-.34,1.28,0,{scale:[1,.95,.9]});
+  ball(g,.62,wool,.34,1.28,0,{scale:[1,.95,.9]});
+  ball(g,.7,wool,0,1.62,0,{scale:[1,.9,.9]});
+  ball(g,.55,wool,0,1.05,.3,{scale:[1,.85,.8]});
   if(dress) cyl(g,.72,1.02,1.15,dress,0,1.05,0);
-  const armL = cyl(g,.15,.15,.9,body,-1.02,1.55,0,{rot:[0,0,.45]});
-  const armR = cyl(g,.15,.15,.9,body,1.02,1.55,0,{rot:[0,0,-.45]});
-  cyl(g,.09,.09,.45,body,0,1.95,-.8,{rot:[.7,0,0]});
-  ball(g,.9,body,0,2.85,0);
-  cone(g,.24,.46,body,-.46,3.68,0); cone(g,.24,.46,body,.46,3.68,0);
-  cyl(g,.42,.42,.34,0xffc6dd,0,2.66,.86,{rot:[Math.PI/2,0,0]});
-  ball(g,.065,0xc9678b,-.16,2.66,1.05,{cast:false});
-  ball(g,.065,0xc9678b,.16,2.66,1.05,{cast:false});
-  ball(g,.16,0xffffff,-.32,3.05,.72,{cast:false});
-  ball(g,.16,0xffffff,.32,3.05,.72,{cast:false});
-  ball(g,.08,0x3c3034,-.32,3.05,.86,{cast:false});
-  ball(g,.08,0x3c3034,.32,3.05,.86,{cast:false});
-  ball(g,.14,0xff8fb6,-.58,2.7,.66,{cast:false});
-  ball(g,.14,0xff8fb6,.58,2.7,.66,{cast:false});
-  if(opts.glasses){ torus(g,.24,.045,0x4b3a3c,-.32,3.05,.78); torus(g,.24,.045,0x4b3a3c,.32,3.05,.78); }
+  const armL = cyl(g,.15,.15,.9,face,-1.02,1.55,0,{rot:[0,0,.45]});
+  const armR = cyl(g,.15,.15,.9,face,1.02,1.55,0,{rot:[0,0,-.45]});
+  ball(g,.3,wool,0,1.75,-.85,{cast:false});
+  // 蓬松的头
+  ball(g,.58,wool,-.34,2.98,0);
+  ball(g,.58,wool,.34,2.98,0);
+  ball(g,.56,wool,0,3.3,-.05);
+  ball(g,.5,wool,0,2.72,-.2);
+  ball(g,.72,face,0,2.8,.55,{scale:[.85,.9,.62]});
+  // 耷拉的耳朵
+  ball(g,.24,face,-.78,2.88,.05,{scale:[.6,1.3,.4],rot:[0,0,.35]});
+  ball(g,.24,face,.78,2.88,.05,{scale:[.6,1.3,.4],rot:[0,0,-.35]});
+  // 口鼻
+  ball(g,.28,0xf3c7bb,0,2.56,1.02,{scale:[1,.75,.6]});
+  ball(g,.06,0xb98484,-.11,2.6,1.16,{cast:false});
+  ball(g,.06,0xb98484,.11,2.6,1.16,{cast:false});
+  // 眼睛与腮红
+  ball(g,.16,0xffffff,-.28,2.98,1.02,{cast:false});
+  ball(g,.16,0xffffff,.28,2.98,1.02,{cast:false});
+  ball(g,.08,0x3c3034,-.28,2.98,1.15,{cast:false});
+  ball(g,.08,0x3c3034,.28,2.98,1.15,{cast:false});
+  ball(g,.13,0xffb3c6,-.52,2.68,.92,{cast:false});
+  ball(g,.13,0xffb3c6,.52,2.68,.92,{cast:false});
+  if(opts.glasses){ torus(g,.23,.045,0x4b3a3c,-.28,2.98,1.04); torus(g,.23,.045,0x4b3a3c,.28,2.98,1.04); }
   if(opts.lashes){
-    box(g,.05,.28,.05,0x4b3a3c,-.5,3.24,.72,{rot:[0,0,.5],cast:false});
-    box(g,.05,.28,.05,0x4b3a3c,.5,3.24,.72,{rot:[0,0,-.5],cast:false});
+    box(g,.05,.26,.05,0x4b3a3c,-.45,3.17,.98,{rot:[0,0,.5],cast:false});
+    box(g,.05,.26,.05,0x4b3a3c,.45,3.17,.98,{rot:[0,0,-.5],cast:false});
   }
   g.scale.setScalar(opts.scale || 1);
   g.userData = { armL, armR, legL, legR, phase: Math.random()*6, baseY:0 };
   return g;
 }
-function animatePig(g, energy){
+function animateLamb(g, energy){
   const u = g.userData, e = energy || 1;
   g.position.y = u.baseY + Math.sin(t*3.4+u.phase)*.05*e;
   u.armL.rotation.x = Math.sin(t*5+u.phase)*.18*e;
@@ -158,7 +170,7 @@ function confetti(s, x,y,z){
 }
 
 /* ---------------- 音效 ---------------- */
-let audioCtx=null, soundOn=localStorage.getItem('peppa3d_sound')!=='0';
+let audioCtx=null, soundOn=localStorage.getItem('lamb3d_sound')!=='0';
 function ensureAudio(){
   if(!soundOn) return;
   try{ if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)(); if(audioCtx.state==='suspended') audioCtx.resume(); }
@@ -186,7 +198,7 @@ const $ = id => document.getElementById(id);
 const screens = ['screen-title','screen-result'];
 function show(id){ screens.forEach(s=>$(s).classList.toggle('hidden',s!==id)); }
 function hideScreens(){ screens.forEach(s=>$(s).classList.add('hidden')); }
-let best={}; try{ best=JSON.parse(localStorage.getItem('peppa3d_best')||'{}')||{}; }catch(e){ best={}; }
+let best={}; try{ best=JSON.parse(localStorage.getItem('lamb3d_best')||'{}')||{}; }catch(e){ best={}; }
 const GAMES=[
   {id:'fish',name:'快乐钓鱼',color:'#52b6e8'},
   {id:'tug',name:'大力拔河',color:'#f39a3d'},
@@ -207,7 +219,7 @@ function setPrompt(text){
 }
 function finish(id,stars,count){
   best[id]=Math.max(best[id]||0,stars);
-  localStorage.setItem('peppa3d_best',JSON.stringify(best));
+  localStorage.setItem('lamb3d_best',JSON.stringify(best));
   resultGame=id; resultStars=stars; resultCount=count;
   sfx('yay'); $('result-stars').innerHTML=[0,1,2].map(i=>
     '<span class="rs '+(i<stars?'on':'')+'">★</span>').join('');
@@ -221,7 +233,7 @@ $('btn-again').addEventListener('click',()=>{ sfx('tap'); setState(resultGame); 
 $('btn-home').addEventListener('click',()=>{ sfx('tap'); setState('hub'); });
 $('btn-back').addEventListener('click',()=>{ sfx('tap'); setState('hub'); });
 $('btn-sound').addEventListener('click',()=>{
-  soundOn=!soundOn; localStorage.setItem('peppa3d_sound',soundOn?'1':'0');
+  soundOn=!soundOn; localStorage.setItem('lamb3d_sound',soundOn?'1':'0');
   $('btn-sound').textContent=soundOn?'声音 开':'声音 关';
   if(soundOn){ ensureAudio(); sfx('pop'); }
 });
@@ -233,10 +245,10 @@ function buildTitle(){
   hill(s,-18,-20,14,0xb9e878); hill(s,14,-24,16,0xaee16e); hill(s,34,-18,12,0xbce986);
   for(let i=0;i<7;i++) cloud(s,-30+i*11,9+Math.random()*5,-22-Math.random()*14,.8+Math.random()*.6);
   tree(s,-11,-6,1.1); tree(s,12,-8,.95); house(s,-16,-14,0xe9546d); house(s,17,-16,0x5fb9e8);
-  const peppa=pig({scale:1.15}); peppa.position.set(-2.4,0,2); peppa.rotation.y=.3; s.add(peppa);
-  const george=pig({dress:0x4e9ce8,scale:.85}); george.position.set(1.8,0,2.4); george.rotation.y=-.3; s.add(george);
+  const lambA=lamb({scale:1.15}); lambA.position.set(-2.4,0,2); lambA.rotation.y=.3; s.add(lambA);
+  const lambB=lamb({dress:0x4e9ce8,scale:.85}); lambB.position.set(1.8,0,2.4); lambB.rotation.y=-.3; s.add(lambB);
   setCam(0,4.5,15, 0,2,0);
-  return {s, update(){ animatePig(peppa); animatePig(george); }, tap(){ setState('hub'); }};
+  return {s, update(){ animateLamb(lambA); animateLamb(lambB); }, tap(){ setState('hub'); }};
 }
 
 let labelEls=[], pickTargets=[];
@@ -326,7 +338,7 @@ function buildFish(){
   torus(s,8.7,.08,0xbdeaff,0,.34,-3,{rot:[Math.PI/2,0,0],cast:false});
   box(s,5,.4,7,0xc98b5e,-8,.6,3);
   for(let i=0;i<3;i++) cyl(s,.22,.22,1.3,0xa96f48,-9.7+i*1.8,-.05,0,{cast:false});
-  const peppa=pig({scale:1.05}); peppa.position.set(-8,.8,2); peppa.rotation.y=1.2; s.add(peppa);
+  const lambA=lamb({scale:1.05}); lambA.position.set(-8,.8,2); lambA.rotation.y=1.2; s.add(lambA);
   const hand=new THREE.Vector3(-6.6,2.6,1.1), tip=new THREE.Vector3(-3.4,5.2,-1.6);
   rodBetween(s,hand,tip,.07,0x8b5b3f);
   const bob=new THREE.Group();
@@ -344,7 +356,7 @@ function buildFish(){
   return {
     s,
     update(dt){
-      animatePig(peppa);
+      animateLamb(lambA);
       F.fishX+=F.dir*3.2*dt; if(F.fishX<-6||F.fishX>6) F.dir*=-1;
       if(F.phase==='wait'||F.phase==='bite'){ fish.visible=true; fish.position.set(F.fishX,.45,F.bz-.3); fish.rotation.y=F.dir>0?0:Math.PI; }
       if(F.phase==='cast'){
@@ -382,8 +394,8 @@ function buildTug(){
   hill(s,0,-34,30,0xb9e878);
   for(let i=0;i<5;i++) cloud(s,-28+i*14,10,-28,1);
   tree(s,-18,-8,.9); tree(s,18,-8,.9);
-  const daddy=pig({dress:0x4f8fc9,glasses:true,scale:1.3}); daddy.position.set(-7,0,0); daddy.rotation.y=Math.PI/2; s.add(daddy);
-  const peppa=pig({scale:1.1}); peppa.position.set(7,0,0); peppa.rotation.y=-Math.PI/2; s.add(peppa);
+  const lambDad=lamb({dress:0x4f8fc9,glasses:true,scale:1.3}); lambDad.position.set(-7,0,0); lambDad.rotation.y=Math.PI/2; s.add(lambDad);
+  const lambA=lamb({scale:1.1}); lambA.position.set(7,0,0); lambA.rotation.y=-Math.PI/2; s.add(lambA);
   const rope=box(s,13,.16,.16,0xb87b4d,0,2.2,0);
   const marker=new THREE.Group();
   box(marker,.25,1.6,.25,0xf3425c,0,0,0);
@@ -396,7 +408,7 @@ function buildTug(){
   return {
     s,
     update(dt){
-      animatePig(peppa); animatePig(daddy);
+      animateLamb(lambA); animateLamb(lambDad);
       if(U.phase==='ready'){
         U.timer-=dt;
         if(U.timer<=0){ U.phase='play'; setPrompt('拉！拉！拉！'); }
@@ -404,7 +416,7 @@ function buildTug(){
         U.pull=Math.max(0,U.pull-.45*dt); U.time+=dt;
         const opp=.32+Math.min(.16,U.time*.004);
         U.pos=Math.max(.06,Math.min(.94,U.pos+(U.pull-opp)*.7*dt));
-        peppa.rotation.z=-U.pull*.28; daddy.rotation.z=U.pull*.2;
+        lambA.rotation.z=-U.pull*.28; lambDad.rotation.z=U.pull*.2;
         marker.position.set(-6.5+13*U.pos,2.2+Math.sin(t*9)*.05,0);
         rope.rotation.z=(U.pull-opp)*.02;
         hud();
@@ -434,7 +446,7 @@ function buildSlide(){
   box(s,3.4,.3,3,0xf4a15c,-2.2,6.1,-8.5);
   box(s,.35,6, .35,0xc58050,-1,3,-8.6); box(s,.35,6,.35,0xc58050,1,3,-8.6);
   bush(s,1.8,10,1.2); bush(s,4,11,.9);
-  const peppa=pig({scale:.9}); s.add(peppa);
+  const lambA=lamb({scale:.9}); s.add(lambA);
   const stars=[.18,.38,.58,.78,.93].map(p=>{
     const m=starMesh(s,0,6-5.2*p+1.6,-8+16*p,.55); m.userData.p=p; return m;
   });
@@ -447,16 +459,16 @@ function buildSlide(){
     update(dt){
       if(S.phase==='climb'){
         const u=S.climb;
-        peppa.position.set(-3.6, .8+u*5.1, 5-u*13);
-        peppa.rotation.y=Math.PI;
-        animatePig(peppa,1.6);
+        lambA.position.set(-3.6, .8+u*5.1, 5-u*13);
+        lambA.rotation.y=Math.PI;
+        animateLamb(lambA,1.6);
         if(S.climb>=1){ S.phase='slide'; S.p=0; setPrompt('跳起来收星星！'); sfx('boing'); }
       } else if(S.phase==='slide'){
         S.p+=dt*(.18+.22*S.p);
         if(S.vy||S.jump){ S.vy-=18*dt; S.jump+=S.vy*dt; if(S.jump<=0){ S.jump=0; S.vy=0; } }
         const p=Math.min(1,S.p);
-        peppa.position.set(0,6-5.2*p+1+S.jump,-8+16*p);
-        peppa.rotation.set(-.3,0,0);
+        lambA.position.set(0,6-5.2*p+1+S.jump,-8+16*p);
+        lambA.rotation.set(-.3,0,0);
         stars.forEach(m=>{
           if(m.visible){
             m.rotation.z+=dt*2; m.position.y=6-5.2*m.userData.p+1.6+Math.sin(t*4)*.15;
@@ -486,7 +498,7 @@ function buildSkate(){
   const rink=new THREE.Mesh(new THREE.PlaneGeometry(60,80),mat(0xbfe8ff));
   rink.rotation.x=-Math.PI/2; rink.position.y=.02; rink.receiveShadow=true; s.add(rink);
   [-16,16].forEach(x=>{ for(let i=0;i<5;i++) tree(s,x,-28+i*14,.85); });
-  const peppa=pig({scale:1}); peppa.position.set(0,0,7); peppa.rotation.y=Math.PI; s.add(peppa);
+  const lambA=lamb({scale:1}); lambA.position.set(0,0,7); lambA.rotation.y=Math.PI; s.add(lambA);
   let K={time:30,jump:0,vy:0,got:0,hits:0,invul:0,speed:11,items:[],obs:[]};
   function spawn(){
     K.items.push({type:'flake',x:(Math.random()-.5)*9,z:-32,mesh:makeFlake(s),got:false});
@@ -518,7 +530,7 @@ function buildSkate(){
     update(dt){
       K.time-=dt; K.invul=Math.max(0,K.invul-dt); hud();
       if(K.vy||K.jump){ K.vy-=17*dt; K.jump+=K.vy*dt; if(K.jump<=0){ K.jump=0; K.vy=0; } }
-      peppa.position.y=K.jump;
+      lambA.position.y=K.jump;
      [K.items,K.obs].forEach(arr=>arr.forEach(o=>{
         o.z+=K.speed*dt; o.mesh.position.z=o.z; o.mesh.position.x=o.x;
       }));

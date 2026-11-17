@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#8fd8ff">
-<title>佩奇的快乐小游戏</title>
+<title>小羊的快乐小游戏</title>
 <style>
 /* 单文件、零依赖：所有美术由 Canvas 程序化绘制，所有音效由 WebAudio 合成 */
 :root{--sky:#8fd8ff;--ink:#4b3a3c}
@@ -201,62 +201,65 @@ function meadow(){
   for(let i=0;i<7;i++) flower(120+i*170,560+(i%2)*22, i%2?'#ff7f9e':'#ffd447');
 }
 
-/* ---------- 小猪角色（程序化，佩奇风格平面造型） ---------- */
+/* ---------- 小羊角色（程序化，蓬松羊毛 + 奶油色脸） ---------- */
 function pig(x,y,s,o){
   o = o || {};
-  const body=o.body||'#ffb3d1', dress=o.dress||'#f3425c', pose=o.pose||'idle';
+  const face=o.body||'#f0d9c4', wool='#fffdf6', dress=o.dress||'#f3425c', pose=o.pose||'idle';
   const lean = pose==='pull' ? -.16 : 0;
   ctx.save(); ctx.translate(x,y+Math.sin(t*3.6+(o.phase||0))*(o.still?0:3));
   ctx.scale(s*(o.dir||1),s); ctx.rotate(lean);
   // 腿
-  rr(-24,-48,19,50,8,body,LINE,4); rr(5,-48,19,50,8,body,LINE,4);
-  ell(-15,-2,13,7,body,LINE,3); ell(15,-2,13,7,body,LINE,3);
-  // 身体 + 衣服
-  ell(0,-92,44,46,body,LINE,5);
+  rr(-24,-48,19,50,8,face,LINE,4); rr(5,-48,19,50,8,face,LINE,4);
+  ell(-15,-2,13,7,face,LINE,3); ell(15,-2,13,7,face,LINE,3);
+  // 蓬松身体
+  ell(-27,-94,25,24,wool,LINE,4); ell(25,-94,25,24,wool,LINE,4);
+  ell(0,-108,29,27,wool,LINE,4); ell(-12,-74,22,20,wool,LINE,4); ell(16,-74,22,20,wool,LINE,4);
   if (dress){
-    ctx.beginPath(); ctx.moveTo(-35,-96); ctx.quadraticCurveTo(0,-112,35,-96);
-    ctx.lineTo(44,-50); ctx.quadraticCurveTo(0,-36,-44,-50); ctx.closePath();
+    ctx.beginPath(); ctx.moveTo(-34,-96); ctx.quadraticCurveTo(0,-110,34,-96);
+    ctx.lineTo(42,-50); ctx.quadraticCurveTo(0,-36,-42,-50); ctx.closePath();
     fillStroke(dress,LINE,5);
-    line(-37,-56,37,-56,'#fff6f8',5);
+    line(-36,-56,36,-56,'#fff6f8',5);
   }
   // 手臂
   if (pose==='cheer'){
-    line(-28,-112,-52,-160,body,15); line(28,-112,52,-160,body,15);
-    ell(-53,-163,10,10,body,LINE,3); ell(53,-163,10,10,body,LINE,3);
+    line(-28,-112,-52,-160,face,15); line(28,-112,52,-160,face,15);
+    ell(-53,-163,10,10,face,LINE,3); ell(53,-163,10,10,face,LINE,3);
   } else if (pose==='pull'){
-    line(-28,-108,26,-128,body,15); line(28,-108,52,-120,body,15);
-    ell(28,-128,10,10,body,LINE,3); ell(54,-120,10,10,body,LINE,3);
+    line(-28,-108,26,-128,face,15); line(28,-108,52,-120,face,15);
+    ell(28,-128,10,10,face,LINE,3); ell(54,-120,10,10,face,LINE,3);
   } else if (pose==='skate'){
-    line(-28,-108,-64,-124,body,15); line(28,-108,60,-96,body,15);
-    ell(-66,-125,10,10,body,LINE,3); ell(62,-96,10,10,body,LINE,3);
+    line(-28,-108,-64,-124,face,15); line(28,-108,60,-96,face,15);
+    ell(-66,-125,10,10,face,LINE,3); ell(62,-96,10,10,face,LINE,3);
   } else {
-    line(-28,-108,-44,-80,body,15); line(28,-108,46,-82,body,15);
-    ell(-45,-78,10,10,body,LINE,3); ell(47,-80,10,10,body,LINE,3);
+    line(-28,-108,-44,-80,face,15); line(28,-108,46,-82,face,15);
+    ell(-45,-78,10,10,face,LINE,3); ell(47,-80,10,10,face,LINE,3);
   }
-  // 头、耳朵
-  ell(-13,-187,13,19,body,LINE,4); ell(-13,-187,6,11,'#ff8fb6',null);
-  ell(0,-148,48,45,body,LINE,5);
-  // 脸颊、鼻子
-  ell(17,-136,11,8,'#ff8fb6',null);
-  ell(43,-140,28,20,'#ffc6dd',LINE,4);
-  ell(53,-147,4.5,6,'#d9678b',null); ell(53,-133,4.5,6,'#d9678b',null);
+  // 蓬松头 + 耷拉耳朵
+  ell(-19,-160,23,22,wool,LINE,4); ell(4,-170,25,23,wool,LINE,4);
+  ell(23,-157,20,19,wool,LINE,4); ell(-12,-137,18,17,wool,LINE,4);
+  ell(-18,-178,17,9,face,LINE,3); ell(-19,-178,8,4.5,'#ffb3c6',null);
+  // 脸、口鼻
+  ell(17,-145,31,27,face,LINE,5);
+  ell(44,-139,15,12,'#f3c7bb',LINE,3);
+  ell(51,-143,3.5,4.5,'#b98484',null); ell(51,-135,3.5,4.5,'#b98484',null);
+  ell(21,-136,10,7,'#ffb3c6',null);
   // 眼睛
-  ell(6,-162,9,12,'#fff',LINE,3); ell(28,-162,8,11,'#fff',LINE,3);
-  ell(9,-161,4,5,'#3c3034',null); ell(30,-161,4,5,'#3c3034',null);
+  ell(8,-158,9,11,'#fff',LINE,3); ell(29,-158,8,10,'#fff',LINE,3);
+  ell(11,-157,4,5,'#3c3034',null); ell(31,-157,4,5,'#3c3034',null);
   // 微笑
-  ctx.beginPath(); ctx.arc(24,-126,11,0.15,Math.PI-0.15); ctx.strokeStyle=LINE; ctx.lineWidth=3.5; ctx.stroke();
+  ctx.beginPath(); ctx.arc(30,-127,10,0.15,Math.PI-0.15); ctx.strokeStyle=LINE; ctx.lineWidth=3.5; ctx.stroke();
   if (o.glasses){
-    ell(6,-162,18,18,null,LINE,3); ell(28,-162,17,17,null,LINE,3); line(17,-162,18,-162,LINE,3);
+    ell(8,-158,18,18,null,LINE,3); ell(29,-158,17,17,null,LINE,3); line(19,-158,20,-158,LINE,3);
   }
   if (o.lashes){
-    line(-2,-174,-8,-182,LINE,3); line(5,-176,4,-185,LINE,3); line(12,-175,17,-183,LINE,3);
+    line(0,-169,-6,-177,LINE,3); line(8,-171,7,-180,LINE,3); line(15,-169,20,-177,LINE,3);
   }
   ctx.restore();
 }
-const PEPPA  = { body:'#ffb3d1', dress:'#ee3d57' };
-const GEORGE = { body:'#ffb3d1', dress:'#4e9ce8' };
-const MUMMY  = { body:'#ffb3d1', dress:'#f2a13c', lashes:true };
-const DADDY  = { body:'#ffb3d1', dress:'#4f8fc9', glasses:true };
+const PEPPA  = { body:'#f0d9c4', dress:'#ee3d57' };
+const GEORGE = { body:'#f0d9c4', dress:'#4e9ce8' };
+const MUMMY  = { body:'#f0d9c4', dress:'#f2a13c', lashes:true };
+const DADDY  = { body:'#f0d9c4', dress:'#4f8fc9', glasses:true };
 
 /* ---------- 粒子 ---------- */
 let parts = [];
@@ -321,9 +324,9 @@ function drawTitle(){
   fence(470,505,330);
   pig(560,650,1.05,PEPPA); pig(690,650,.82,GEORGE);
   rr(VW/2-310,118,620,208,36,'rgba(255,255,255,.92)',LINE,7);
-  textOut('佩奇的快乐小游戏',VW/2,185,62,'#f3425c','#fff',undefined,12);
+  textOut('小羊的快乐小游戏',VW/2,185,62,'#f3425c','#fff',undefined,12);
   text('钓鱼 · 拔河 · 滑滑梯 · 溜冰 · 采蘑菇',VW/2,255,29,LINE);
-  text('和小猪佩奇一起玩吧！',VW/2,297,23,'#7a6264');
+  text('和小羊一起玩吧！',VW/2,297,23,'#7a6264');
   if(button(VW/2-150,352,300,80,'开始玩  →','#ff8f43',34)){ sfx('yay'); go('hub'); }
   text('点一下屏幕就能玩，也可以用空格键',VW/2,694,22,'#fff','center',700);
 }
@@ -433,7 +436,7 @@ function drawFishScene(){
     const j=F.jump, u=j.t/.85;
     drawFish(j.x,520-Math.sin(u*Math.PI)*140,.95,'#ff9d5c',1);
   }
-  // 木栈桥 + 佩奇
+  // 木栈桥 + 小羊
   rr(90,470,250,28,8,'#c98b5e',LINE,5);
   for(let i=0;i<4;i++) rr(110+i*58,498,20,105,5,'#a96f48',LINE,4);
   pig(230,470,.92,PEPPA,{pose:'idle'});
