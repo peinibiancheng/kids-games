@@ -1,0 +1,784 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#8fd8ff">
+<title>佩奇的快乐小游戏</title>
+<style>
+/* 单文件、零依赖：所有美术由 Canvas 程序化绘制，所有音效由 WebAudio 合成 */
+:root{--sky:#8fd8ff;--ink:#4b3a3c}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--sky);
+  font-family:'Yuanti SC','幼圆','Microsoft YaHei','PingFang SC',sans-serif;
+  -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+#game{display:block;width:100vw;height:100vh;touch-action:none;outline:none}
+#fatal{position:fixed;left:8px;right:8px;bottom:8px;max-height:40%;overflow:auto;display:none;
+  padding:10px 12px;border-radius:12px;background:#fff0f0;color:#a32323;font:13px/1.5 monospace;
+  white-space:pre-wrap;z-index:9}
+</style>
+</head>
+<body>
+<canvas id="game" tabindex="0"></canvas>
+<div id="fatal"></div>
+<script>
+'use strict';
+/* =========================================================================
+   0. 引擎：逻辑分辨率 1280x720，等比缩放 + 居中留边；键鼠/触屏统一为 tap
+   ========================================================================= */
+const VW = 1280, VH = 720;
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d', { alpha: false });
+let scale = 1, offX = 0, offY = 0, DPR = 1;
+
+function resize(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  DPR = dpr;
+  const w = window.innerWidth, h = window.innerHeight;
+  canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+  scale = Math.min(w / VW, h / VH);
+  offX = (w - VW * scale) / 2; offY = (h - VH * scale) / 2;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#8fd8ff'; ctx.fillRect(0, 0, w, h);
+}
+window.addEventListener('resize', resize);
+
+let t = 0;
+const P = { x: VW/2, y: VH/2, down:false, pressed:false, released:false };
+function toLogical(cx, cy){
+  const r = canvas.getBoundingClientRect();
+  P.x = (cx - r.left - offX) / scale;
+  P.y = (cy - r.top  - offY) / scale;
+}
+canvas.addEventListener('pointerdown', e => {
+  e.preventDefault(); toLogical(e.clientX, e.clientY);
+  P.down = true; P.pressed = true; canvas.focus(); ensureAudio();
+});
+canvas.addEventListener('pointermove', e => { toLogical(e.clientX, e.clientY); });
+window.addEventListener('pointerup', () => { P.down = false; P.released = true; });
+window.addEventListener('pointercancel', () => { P.down = false; });
+window.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowUp'){
+    e.preventDefault(); P.x = VW/2; P.y = VH/2;
+    P.down = true; P.pressed = true; ensureAudio();
+  }
+});
+window.addEventListener('keyup', e => { if (e.code === 'Space' || e.code === 'Enter') P.down = false; });
+
+let audioCtx = null, soundOn = localStorage.getItem('peppa_sound') !== '0';
+function ensureAudio(){
+  if (!soundOn) return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (e) { soundOn = false; }
+}
+function tone(freq, dur, type, vol, delay){
+  if (!soundOn || !audioCtx) return;
+  const t0 = audioCtx.currentTime + (delay || 0);
+  const osc = audioCtx.createOscillator(), g = audioCtx.createGain();
+  osc.type = type || 'sine'; osc.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(vol || 0.07, t0 + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g); g.connect(audioCtx.destination);
+  osc.start(t0); osc.stop(t0 + dur + 0.02);
+}
+function sfx(name){
+  if (name === 'tap')   tone(660, .09, 'sine', .05);
+  if (name === 'pop')   { tone(520, .08, 'triangle', .07); tone(780, .12, 'sine', .05, .06); }
+  if (name === 'yay')   [523,659,784,1047].forEach((f,i)=>tone(f,.24,'sine',.07,i*.09));
+  if (name === 'woo')   { tone(300,.25,'sine',.06); tone(600,.3,'sine',.05,.1); }
+  if (name === 'splash'){ tone(220,.16,'triangle',.07); tone(170,.2,'sine',.05,.08); }
+  if (name === 'boing') { tone(180,.18,'sine',.08); tone(420,.2,'triangle',.05,.09); }
+  if (name === 'star')  [880,1109,1319].forEach((f,i)=>tone(f,.16,'sine',.06,i*.07));
+}
+function toggleSound(){
+  soundOn = !soundOn; localStorage.setItem('peppa_sound', soundOn ? '1' : '0');
+  if (soundOn) { ensureAudio(); sfx('pop'); }
+}
+
+/* ---------- 绘图基元 ---------- */
+const LINE = '#5b3a3c', LW = 5;
+function fillStroke(fill, stroke, lw){
+  if (fill){ ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke !== null){ ctx.strokeStyle = stroke || LINE; ctx.lineWidth = lw || LW; ctx.stroke(); }
+}
+function rr(x,y,w,h,r,fill,stroke,lw){
+  r = Math.min(r, w/2, h/2); ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+  fillStroke(fill, stroke === undefined ? LINE : stroke, lw);
+}
+function ell(x,y,rx,ry,fill,stroke,lw,rot){
+  ctx.beginPath(); ctx.ellipse(x,y,rx,ry,rot||0,0,Math.PI*2);
+  fillStroke(fill, stroke === undefined ? LINE : stroke, lw);
+}
+function poly(pts,fill,stroke,lw){
+  ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+  for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]);
+  ctx.closePath(); fillStroke(fill, stroke === undefined ? LINE : stroke, lw);
+}
+function line(x1,y1,x2,y2,color,lw){
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+  ctx.strokeStyle = color || LINE; ctx.lineWidth = lw || 5; ctx.lineCap = 'round'; ctx.stroke();
+}
+function text(s,x,y,size,color,align,weight){
+  ctx.font = (weight||800)+' '+size+"px 'Yuanti SC','幼圆','Microsoft YaHei',sans-serif";
+  ctx.textAlign = align || 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = color || LINE; ctx.fillText(s,x,y);
+}
+function textOut(s,x,y,size,fill,stroke,align,lw){
+  ctx.font = "900 "+size+"px 'Yuanti SC','幼圆','Microsoft YaHei',sans-serif";
+  ctx.textAlign = align||'center'; ctx.textBaseline='middle';
+  ctx.lineJoin='round'; ctx.lineWidth=lw||10; ctx.strokeStyle=stroke||'#fff'; ctx.strokeText(s,x,y);
+  ctx.fillStyle=fill; ctx.fillText(s,x,y);
+}
+function star(x,y,r,fill,rot){
+  ctx.save(); ctx.translate(x,y); ctx.rotate(rot||0); ctx.beginPath();
+  for(let i=0;i<10;i++){
+    const a = -Math.PI/2 + i*Math.PI/5, rr2 = i%2 ? r*0.45 : r;
+    const px = Math.cos(a)*rr2, py = Math.sin(a)*rr2;
+    i ? ctx.lineTo(px,py) : ctx.moveTo(px,py);
+  }
+  ctx.closePath(); fillStroke(fill||'#ffd447', LINE, 3); ctx.restore();
+}
+function inRect(r){ return P.pressed && P.x>=r.x && P.x<=r.x+r.w && P.y>=r.y && P.y<=r.y+r.h; }
+function button(x,y,w,h,label,color,size){
+  const r = {x,y,w,h}, hot = P.x>=x&&P.x<=x+w&&P.y>=y&&P.y<=y+h;
+  const lift = hot ? 3 : 0;
+  rr(x,y+6,w,h,Math.min(h/2,26),'rgba(75,58,60,.22)',null);
+  rr(x,y-lift,w,h,Math.min(h/2,26),color||'#ffcf40',LINE,5);
+  rr(x+8,y+7-lift,w-16,h-18,Math.min(h/2,20),'rgba(255,255,255,.28)',null);
+  text(label,x+w/2,y+h/2-lift,size||Math.min(30,h*.44),'#fff','center',900);
+  return inRect(r);
+}
+
+/* ---------- 场景素材 ---------- */
+function cloud(x,y,s){
+  ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+  ell(-34,4,30,20,'#fff',null); ell(0,-10,36,26,'#fff',null);
+  ell(34,4,30,20,'#fff',null); rr(-56,2,112,20,10,'#fff',null); ctx.restore();
+}
+function sun(x,y,r){
+  for(let i=0;i<12;i++){ const a=i*Math.PI/6+t*.12; line(x+Math.cos(a)*r*1.3,y+Math.sin(a)*r*1.3,x+Math.cos(a)*r*1.65,y+Math.sin(a)*r*1.65,'#ffe488',6); }
+  ell(x,y,r,r,'#ffd94a',null); ell(x-8,y-8,r*.45,r*.45,'#ffe98a',null);
+}
+function hill(x,y,w,h,c){ ctx.beginPath(); ctx.ellipse(x,y,w,h,0,Math.PI,Math.PI*2); ctx.closePath(); fillStroke(c,null); }
+function tree(x,y,s){
+  ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+  rr(-9,-52,18,54,7,'#a46b45',LINE,4);
+  ell(-26,-76,34,34,'#5fbf57',LINE,4); ell(26,-78,34,34,'#69c95e',LINE,4);
+  ell(0,-104,40,38,'#74d268',LINE,4); ctx.restore();
+}
+function bush(x,y,s,c){ ell(x,y,36*s,22*s,c||'#62c255',LINE,4); ell(x+26*s,y+5*s,24*s,17*s,c||'#62c255',LINE,4); }
+function flower(x,y,c){ line(x,y,x,y-20,'#4fae46',3); ell(x,y-24,7,7,c||'#ff7f9e',null); ell(x,y-24,3,3,'#ffe66b',null); }
+function fence(x,y,w){
+  for(let i=0;i<=w/70;i++){ rr(x+i*70,y,12,52,4,'#fff8e6',LINE,3); }
+  line(x,y+14,x+w,y+14,'#fff8e6',7); line(x,y+36,x+w,y+36,'#fff8e6',7);
+}
+function house(x,y,s,roof){
+  ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+  rr(-72,-100,144,102,8,'#fff7e6',LINE,5);
+  poly([-88,-100,0,-172,88,-100],roof||'#e9546d',LINE,6);
+  rr(-20,-62,40,64,6,'#9ad9f4',LINE,4); line(0,-62,0,2,'#fff',4);
+  rr(34,-84,24,30,5,'#bdeaff',LINE,4);
+  rr(-60,-146,30,28,6,'#ffd95e',LINE,4);
+  ctx.restore();
+}
+function sky(color){
+  ctx.fillStyle=color||'#8fd8ff'; ctx.fillRect(0,0,VW,VH);
+  sun(1110,100,48);
+  cloud(170+Math.sin(t*.22)*14,95,1); cloud(520+Math.sin(t*.17)*10,70,.75); cloud(830+Math.sin(t*.25)*12,130,.9);
+}
+function meadow(){
+  hill(190,540,330,170,'#b9e878'); hill(620,555,380,150,'#aee16e'); hill(1090,545,340,160,'#bce986');
+  ctx.fillStyle='#83d45f'; ctx.fillRect(0,540,VW,VH-540);
+  ctx.fillStyle='#77ca54'; ctx.fillRect(0,590,VW,VH-590);
+  for(let i=0;i<18;i++){ const x=40+i*74+(i%3)*12; line(x,620+((i*37)%60),x+9,610+((i*37)%60),'#66b846',3); }
+  bush(80,548,.8); bush(1200,552,.9,'#5cbd53');
+  for(let i=0;i<7;i++) flower(120+i*170,560+(i%2)*22, i%2?'#ff7f9e':'#ffd447');
+}
+
+/* ---------- 小猪角色（程序化，佩奇风格平面造型） ---------- */
+function pig(x,y,s,o){
+  o = o || {};
+  const body=o.body||'#ffb3d1', dress=o.dress||'#f3425c', pose=o.pose||'idle';
+  const lean = pose==='pull' ? -.16 : 0;
+  ctx.save(); ctx.translate(x,y+Math.sin(t*3.6+(o.phase||0))*(o.still?0:3));
+  ctx.scale(s*(o.dir||1),s); ctx.rotate(lean);
+  // 腿
+  rr(-24,-48,19,50,8,body,LINE,4); rr(5,-48,19,50,8,body,LINE,4);
+  ell(-15,-2,13,7,body,LINE,3); ell(15,-2,13,7,body,LINE,3);
+  // 身体 + 衣服
+  ell(0,-92,44,46,body,LINE,5);
+  if (dress){
+    ctx.beginPath(); ctx.moveTo(-35,-96); ctx.quadraticCurveTo(0,-112,35,-96);
+    ctx.lineTo(44,-50); ctx.quadraticCurveTo(0,-36,-44,-50); ctx.closePath();
+    fillStroke(dress,LINE,5);
+    line(-37,-56,37,-56,'#fff6f8',5);
+  }
+  // 手臂
+  if (pose==='cheer'){
+    line(-28,-112,-52,-160,body,15); line(28,-112,52,-160,body,15);
+    ell(-53,-163,10,10,body,LINE,3); ell(53,-163,10,10,body,LINE,3);
+  } else if (pose==='pull'){
+    line(-28,-108,26,-128,body,15); line(28,-108,52,-120,body,15);
+    ell(28,-128,10,10,body,LINE,3); ell(54,-120,10,10,body,LINE,3);
+  } else if (pose==='skate'){
+    line(-28,-108,-64,-124,body,15); line(28,-108,60,-96,body,15);
+    ell(-66,-125,10,10,body,LINE,3); ell(62,-96,10,10,body,LINE,3);
+  } else {
+    line(-28,-108,-44,-80,body,15); line(28,-108,46,-82,body,15);
+    ell(-45,-78,10,10,body,LINE,3); ell(47,-80,10,10,body,LINE,3);
+  }
+  // 头、耳朵
+  ell(-13,-187,13,19,body,LINE,4); ell(-13,-187,6,11,'#ff8fb6',null);
+  ell(0,-148,48,45,body,LINE,5);
+  // 脸颊、鼻子
+  ell(17,-136,11,8,'#ff8fb6',null);
+  ell(43,-140,28,20,'#ffc6dd',LINE,4);
+  ell(53,-147,4.5,6,'#d9678b',null); ell(53,-133,4.5,6,'#d9678b',null);
+  // 眼睛
+  ell(6,-162,9,12,'#fff',LINE,3); ell(28,-162,8,11,'#fff',LINE,3);
+  ell(9,-161,4,5,'#3c3034',null); ell(30,-161,4,5,'#3c3034',null);
+  // 微笑
+  ctx.beginPath(); ctx.arc(24,-126,11,0.15,Math.PI-0.15); ctx.strokeStyle=LINE; ctx.lineWidth=3.5; ctx.stroke();
+  if (o.glasses){
+    ell(6,-162,18,18,null,LINE,3); ell(28,-162,17,17,null,LINE,3); line(17,-162,18,-162,LINE,3);
+  }
+  if (o.lashes){
+    line(-2,-174,-8,-182,LINE,3); line(5,-176,4,-185,LINE,3); line(12,-175,17,-183,LINE,3);
+  }
+  ctx.restore();
+}
+const PEPPA  = { body:'#ffb3d1', dress:'#ee3d57' };
+const GEORGE = { body:'#ffb3d1', dress:'#4e9ce8' };
+const MUMMY  = { body:'#ffb3d1', dress:'#f2a13c', lashes:true };
+const DADDY  = { body:'#ffb3d1', dress:'#4f8fc9', glasses:true };
+
+/* ---------- 粒子 ---------- */
+let parts = [];
+function burst(x,y,color,n,spd){
+  for(let i=0;i<(n||12);i++){
+    const a=Math.random()*Math.PI*2, v=(spd||180)*(.4+Math.random()*.8);
+    parts.push({x,y,vx:Math.cos(a)*v,vy:Math.sin(a)*v-60,life:.6+Math.random()*.5,
+      c:color||'#ffd447',r:4+Math.random()*6});
+  }
+}
+function updateParts(dt){
+  parts.forEach(p=>{ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=420*dt; p.life-=dt; });
+  parts=parts.filter(p=>p.life>0);
+}
+function drawParts(){
+  parts.forEach(p=>{ ctx.globalAlpha=Math.max(0,Math.min(1,p.life*2)); ell(p.x,p.y,p.r,p.r,p.c,null); });
+  ctx.globalAlpha=1;
+}
+
+/* ---------- 存档与场景切换 ---------- */
+let best = {};
+try { best = JSON.parse(localStorage.getItem('peppa_best') || '{}') || {}; } catch(e){ best = {}; }
+function saveBest(id,n){ if((best[id]||0)<n){ best[id]=n; localStorage.setItem('peppa_best',JSON.stringify(best)); } }
+const GAMES = [
+  {id:'fish', name:'快乐钓鱼', color:'#52b6e8', icon:'fish'},
+  {id:'tug',  name:'大力拔河', color:'#f39a3d', icon:'rope'},
+  {id:'slide',name:'滑滑梯',   color:'#ee5b85', icon:'slide'},
+  {id:'skate',name:'溜冰场',   color:'#8c7bea', icon:'skate'},
+  {id:'mush', name:'采蘑菇',   color:'#e7654f', icon:'mush'}
+];
+let scene='title', flash=0;
+function go(s){
+  if(s==='fish') fishReset();
+  if(s==='tug') tugReset();
+  if(s==='slide') slideReset();
+  if(s==='skate') skateReset();
+  if(s==='mush') mushReset();
+  scene=s; flash=1; P.pressed=false;
+}
+let resultGame='fish', resultStars=0, resultCount=0;
+function finish(id,star,count){
+  resultGame=id; resultStars=star; resultCount=count; saveBest(id,star); sfx('yay'); go('result');
+}
+
+/* ---------- 通用顶部栏 ---------- */
+function topBar(title,back){
+  rr(16,14,VW-32,64,30,'rgba(255,255,255,.92)',LINE,5);
+  if(back && button(30,22,74,48,'←','#ffb43f',30)) { sfx('tap'); go('hub'); }
+  text(title, back? VW/2+35 : VW/2, 46, 32, LINE,'center',900);
+  star(VW-232,46,22,'#ffd447'); text('× '+(GAMES.reduce((a,g)=>a+(best[g.id]||0),0)),VW-208,47,26,LINE,'left',900);
+  const sr={x:VW-110,y:22,w:80,h:48};
+  rr(sr.x,sr.y,sr.w,sr.h,22,soundOn?'#ffe27a':'#e5e5e5',LINE,4);
+  text(soundOn?'声音 开':'声音 关',sr.x+40,sr.y+24,20,LINE);
+  if(inRect(sr)) toggleSound();
+}
+
+/* ---------- 标题页 ---------- */
+function drawTitle(){
+  sky(); meadow();
+  house(250,510,1.15,'#e9546d'); house(1030,520,.95,'#5fb9e8');
+  tree(128,530,1.05); tree(1170,535,1.1);
+  fence(470,505,330);
+  pig(560,650,1.05,PEPPA); pig(690,650,.82,GEORGE);
+  rr(VW/2-310,118,620,208,36,'rgba(255,255,255,.92)',LINE,7);
+  textOut('佩奇的快乐小游戏',VW/2,185,62,'#f3425c','#fff',undefined,12);
+  text('钓鱼 · 拔河 · 滑滑梯 · 溜冰 · 采蘑菇',VW/2,255,29,LINE);
+  text('和小猪佩奇一起玩吧！',VW/2,297,23,'#7a6264');
+  if(button(VW/2-150,352,300,80,'开始玩  →','#ff8f43',34)){ sfx('yay'); go('hub'); }
+  text('点一下屏幕就能玩，也可以用空格键',VW/2,694,22,'#fff','center',700);
+}
+
+/* ---------- 游戏中心 ---------- */
+function icon(kind,x,y,s){
+  ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+  if(kind==='fish'){ line(-34,10,20,-22,'#7a4a3c',6); line(20,-22,34,-42,'#7a4a3c',5);
+    ell(12,-16,15,9,'#5ec9f2',LINE,3); poly([[27,-16],[39,-24],[39,-8]],'#5ec9f2',LINE,3); ell(-2,18,30,15,'#63c8f0',LINE,4); }
+  if(kind==='rope'){ line(-42,12,42,-12,'#c98758',9); ctx.setLineDash([6,8]); line(-42,12,42,-12,'#fff3d0',4); ctx.setLineDash([]);
+    rr(-4,-8,9,20,3,'#f3425c',LINE,3); }
+  if(kind==='slide'){ line(-40,-34,-40,22,'#8a5b45',9); line(-40,-34,34,-34,'#8a5b45',9);
+    line(-32,-26,40,22,'#5fb9e8',20); line(-32,-26,40,22,'#e9f8ff',5); }
+  if(kind==='skate'){ ell(-18,14,10,7,'#fff',LINE,3); ell(18,20,10,7,'#fff',LINE,3);
+    line(-18,10,-10,-2,'#6a8ec9',7); line(16,16,8,0,'#6a8ec9',7); ell(0,-10,20,22,'#ffb3d1',LINE,4); }
+  if(kind==='mush'){ rr(-7,0,14,22,5,'#fff5e0',LINE,3); ell(0,-2,28,18,'#e75b52',LINE,4);
+    ell(-12,-7,5,5,'#fff',null); ell(9,-10,6,5,'#fff',null); }
+  ctx.restore();
+}
+function drawHub(){
+  sky(); meadow();
+  textOut('今天玩什么？',VW/2,92,52,'#fff','#4b3a3c',undefined,10);
+  const sr={x:VW-104,y:22,w:76,h:52};
+  rr(sr.x,sr.y,sr.w,sr.h,24,soundOn?'#ffe27a':'#e5e5e5',LINE,4); text(soundOn?'声音':'静音',sr.x+38,sr.y+26,20,LINE);
+  if(inRect(sr)) toggleSound();
+  star(VW-340,48,20,'#ffd447'); text('× '+(GAMES.reduce((a,g)=>a+(best[g.id]||0),0)),VW-318,49,24,'#fff','left',900);
+  for(let i=0;i<GAMES.length;i++){
+    const g=GAMES[i], col=i%3, row=Math.floor(i/3);
+    const x=148+col*352, y=170+row*242, w=304, h=204;
+    const r={x,y,w,h}, hot=P.x>=x&&P.x<=x+w&&P.y>=y&&P.y<=y+h;
+    rr(x+6,y+9,w,h,30,'rgba(75,58,60,.2)',null);
+    rr(x,y-(hot?5:0),w,h,30,'#fffdf5',LINE,6);
+    rr(x+14,y+14-(hot?5:0),w-28,60,22,g.color,null);
+    icon(g.icon,x+w/2,y+100-(hot?5:0),1.18);
+    text(g.name,x+w/2,y+153-(hot?5:0),29,LINE,'center',900);
+    for(let k=0;k<3;k++) star(x+w/2-38+k*38,y+181-(hot?5:0),14,k<(best[g.id]||0)?'#ffd447':'#e3e0da');
+    if(inRect(r)){ sfx('pop'); go(g.id); }
+  }
+  text('每玩好一个游戏，就能得到一颗小星星',VW/2,684,22,'#fff','center',800);
+}
+
+/* ---------- 结算页 ---------- */
+function drawResult(){
+  sky(); meadow();
+  pig(215,660,1,PEPPA,{pose:'cheer'}); pig(1065,660,.85,GEORGE,{pose:'cheer',dir:-1});
+  rr(VW/2-330,120,660,340,38,'#fffdf5',LINE,7);
+  textOut('太棒啦！',VW/2,185,58,'#f3425c','#fff',undefined,10);
+  const g=GAMES.find(v=>v.id===resultGame);
+  text((g?g.name:'游戏')+'  完成！',VW/2,245,30,LINE);
+  for(let i=0;i<3;i++){
+    const got=i<resultStars, sc=got?1+Math.sin(t*4+i)*.06:1;
+    ctx.save(); ctx.translate(VW/2+(i-1)*100,320); ctx.scale(sc,sc);
+    star(0,0,42,got?'#ffd447':'#e3e0da'); ctx.restore();
+  }
+  text(resultCount>0?('这次得分：'+resultCount):'再来一次会更好哦！',VW/2,395,25,'#7a6264');
+  if(button(VW/2-290,492,260,78,'再玩一次','#6ac46a',30)){ sfx('tap'); go(resultGame); }
+  if(button(VW/2+30,492,260,78,'回到草地','#ffb43f',30)){ sfx('tap'); go('hub'); }
+}
+
+/* =========================================================================
+   1. 快乐钓鱼：抛竿 → 等待 → 咬钩 → 及时点击
+   ========================================================================= */
+let F = null;
+function fishReset(){
+  F = { phase:'ready', timer:0, caught:0, target:5, bx:850, by:430, tx:850, fx:600, fdir:1, jump:null };
+}
+function drawFish(x,y,s,c,dir){
+  ctx.save(); ctx.translate(x,y); ctx.scale(s*(dir||1),s);
+  ell(0,0,30,17,c,LINE,4); poly([[-26,0],[-48,-15],[-48,15]],c,LINE,4);
+  ell(9,-4,4,4,'#fff',null); ell(10,-4,2,2,'#333',null);
+  ctx.beginPath(); ctx.arc(4,3,9,.1,Math.PI-.1); ctx.strokeStyle=LINE; ctx.lineWidth=3; ctx.stroke();
+  ctx.restore();
+}
+function updateFish(dt){
+  F.tx += F.fdir*70*dt;
+  if(F.tx<690||F.tx>1080) F.fdir*=-1;
+  if(F.phase==='cast'){
+    F.timer-=dt; F.by+=420*dt;
+    if(F.by>=552){ F.by=552; F.bx=F.tx; F.phase='wait'; F.timer=1.2+Math.random()*1.8; sfx('splash'); burst(F.bx,552,'#bdeaff',8,90); }
+  } else if(F.phase==='wait'){
+    F.timer-=dt; F.by=552+Math.sin(t*2.4)*3;
+    if(F.timer<=0){ F.phase='bite'; F.timer=1.6; sfx('splash'); burst(F.bx,550,'#bdeaff',10,110); }
+  } else if(F.phase==='bite'){
+    F.timer-=dt; F.by=552+Math.abs(Math.sin(t*22))*16;
+    if(P.pressed){
+      F.caught++; sfx('pop'); burst(F.bx,520,'#ffd447',16,190);
+      F.jump={x:F.bx,y:520,t:0}; F.phase='catch'; F.timer=.85;
+    } else if(F.timer<=0){ F.phase='wait'; F.timer=1+Math.random()*1.2; }
+  } else if(F.phase==='catch'){
+    F.timer-=dt; F.jump.t+=dt;
+    if(F.timer<=0){ F.phase = F.caught>=F.target ? 'done' : 'ready'; if(F.phase==='done') finish('fish',Math.min(3,1+Math.floor(F.caught/2)),F.caught); }
+  } else if(F.phase==='ready' && P.pressed){
+    F.phase='cast'; F.timer=.55; F.by=430; F.bx=740; sfx('woo');
+  }
+}
+function drawFishScene(){
+  sky(); meadow();
+  // 池塘
+  ell(800,570,455,105,'#5fc2ee',LINE,6);
+  ell(800,570,410,78,'#79d4f4',null);
+  for(let i=0;i<5;i++){ const x=560+i*130, y=548+(i%2)*28; line(x,y,x+42,y,'#bdeeff',5); }
+  ell(280,540,58,20,'#69c95e',LINE,4); ell(1120,540,58,20,'#69c95e',LINE,4);
+  // 小鱼影子
+  if(F.phase==='wait'||F.phase==='bite') drawFish(F.tx,580,.75,'#398fc4',F.fdir);
+  // 跳起的大鱼
+  if(F.jump){
+    const j=F.jump, u=j.t/.85;
+    drawFish(j.x,520-Math.sin(u*Math.PI)*140,.95,'#ff9d5c',1);
+  }
+  // 木栈桥 + 佩奇
+  rr(90,470,250,28,8,'#c98b5e',LINE,5);
+  for(let i=0;i<4;i++) rr(110+i*58,498,20,105,5,'#a96f48',LINE,4);
+  pig(230,470,.92,PEPPA,{pose:'idle'});
+  // 鱼竿与鱼线
+  line(292,398,742,208,'#8b5b3f',8);
+  line(742,208,F.bx,F.by,'#fffdf5',3);
+  if(F.phase!=='cast') ell(F.bx,F.by,12,16,'#ff5b5b',LINE,3);
+  if(F.phase==='ready'||F.phase==='cast'){
+    rr(430,118,420,72,34,'rgba(255,255,255,.94)',LINE,5);
+    text(F.phase==='ready'?'点一下，把鱼竿抛进水里！':'用力甩出去啦～',640,154,27,LINE);
+  }
+  if(F.phase==='bite'){
+    ell(F.bx,F.by-56,26,26,'#fff',LINE,4); text('!',F.bx,F.by-56,34,'#e8455f');
+    textOut('咬钩啦！快点击！',VW/2,205,46,'#fff','#ec4b62',undefined,10);
+  }
+  if(F.phase==='wait'){
+    text('安静等一等……小鱼快来了',VW/2,180,27,'#fff','center',800);
+  }
+  // 计数牌
+  rr(32,96,260,64,26,'#fffdf5',LINE,5);
+  text('钓到小鱼：'+F.caught+' / '+F.target,162,128,26,LINE);
+  topBar('快乐钓鱼',true);
+  drawParts();
+}
+
+/* =========================================================================
+   2. 大力拔河：连续点击积累力量，把小旗拉过中线
+   ========================================================================= */
+let U = null;
+function tugReset(){ U={phase:'ready',timer:2.2,pos:.5,pull:0,wobble:0,hits:0}; }
+function updateTug(dt){
+  if(U.phase==='ready'){
+    U.timer-=dt;
+    if(U.timer<=0){ U.phase='play'; U.timer=0; sfx('woo'); }
+  } else if(U.phase==='play'){
+    U.pull=Math.max(0,U.pull-dt*.45);
+    U.wobble=Math.max(0,U.wobble-dt*3);
+    if(P.pressed){
+      U.pull=Math.min(1.5,U.pull+.25); U.wobble=1; U.hits++;
+      if(U.hits%3===0) sfx('pop');
+      burst(640+Math.sin(t)*20,420,'#ffe27a',3,90);
+    }
+    const opp=.32+Math.min(.16,U.timer*.004);
+    U.pos+=(U.pull-opp)*dt*.7;
+    U.pos=Math.max(.08,Math.min(.94,U.pos));
+    U.timer+=dt;
+    if(U.pos>=.93){ U.phase='win'; U.timer=1.3; sfx('yay'); burst(VW/2,360,'#ffd447',40,260); }
+  } else if(U.phase==='win'){
+    U.timer-=dt;
+    if(U.timer<=0) finish('tug',Math.min(3,1+Math.floor(U.hits/18)),U.hits);
+  }
+}
+function drawTugScene(){
+  sky(); meadow();
+  // 中线
+  ctx.setLineDash([14,12]); line(640,300,640,650,'rgba(255,255,255,.85)',5); ctx.setLineDash([]);
+  // 绳子（随拉力弯曲）
+  const sag=Math.sin(t*3)*(1-U.wobble)*8;
+  ctx.beginPath(); ctx.moveTo(280,455);
+  ctx.quadraticCurveTo(640,455+40+sag,1000,455); ctx.strokeStyle='#b87b4d'; ctx.lineWidth=15; ctx.stroke();
+  ctx.strokeStyle='#f2c98c'; ctx.lineWidth=5; ctx.stroke();
+  // 绳子上的标记
+  const mx=280+720*U.pos, my=455+40*Math.sin(Math.PI*U.pos)+sag;
+  rr(mx-9,my-34,18,66,6,'#f3425c',LINE,4);
+  poly([[mx+8,my-32],[mx+46,my-16],[mx+8,my]],'#fff',LINE,4);
+  // 双方队员
+  const lean=U.phase==='play'?Math.sin(t*9)*(U.wobble*.5+.2):0;
+  pig(300,575,.95,DADDY,{pose:'pull',dir:1});
+  pig(980,575,1,PEPPA,{pose:'pull',dir:-1});
+  // 力量条
+  rr(440,110,400,54,24,'#fffdf5',LINE,5);
+  rr(452,122,376*(U.pos),30,15,'#ff8f43',null);
+  text('把小旗拉到右边！',640,192,27,'#fff','center',900);
+  // 提示按钮
+  const hot = U.phase==='play' && (P.x>480&&P.x<800&&P.y>560&&P.y<660);
+  rr(470,555+ (hot?-4:0),340,96,44,'rgba(255,255,255,.9)',LINE,5);
+  text(U.phase==='play'?'快点！点！点！':'准备好……',640,602+(hot?-4:0),36,'#f3425c','center',900);
+  if(U.phase==='ready') textOut(U.timer>.9?'预备……':'开始！',VW/2,290,72,'#fff','#f39a3d',undefined,12);
+  if(U.phase==='win') textOut('赢啦——！',VW/2,290,84,'#fff','#6ac46a',undefined,12);
+  topBar('大力拔河',true);
+  drawParts();
+}
+
+/* =========================================================================
+   3. 滑滑梯：点一下爬楼梯 → 自动滑下 → 收集小星星
+   ========================================================================= */
+let S = null;
+function slidePos(p){ return { x:330+620*p, y:250+360*Math.pow(p,1.22) }; }
+function slideReset(){
+  S={phase:'climb',climb:0,p:0,jumpY:0,vy:0,got:0,t:0,land:0,
+     items:[.2,.37,.54,.71,.87].map(p=>({p,got:false}))};
+}
+function updateSlide(dt){
+  S.t+=dt;
+  if(S.phase==='climb'){
+    if(P.pressed){ S.climb=Math.min(1,S.climb+.11); sfx('tap'); }
+    if(S.climb>=1){ S.phase='slide'; S.p=0; sfx('woo'); }
+  } else if(S.phase==='slide'){
+    S.p+=dt*(.2+.22*S.p);
+    if(P.pressed && S.jumpY>=-1){ S.vy=-330; sfx('boing'); }
+    S.vy+=1050*dt; S.jumpY+=S.vy*dt;
+    if(S.jumpY>0){ S.jumpY=0; S.vy=0; }
+    S.items.forEach(it=>{
+      if(!it.got && Math.abs(S.p-it.p)<.065 && S.jumpY>-95){
+        it.got=true; S.got++; sfx('star'); burst(slidePos(it.p).x,slidePos(it.p).y-70,'#ffd447',12,150);
+      }
+    });
+    if(S.p>=1){ S.phase='land'; S.land=1; burst(970,620,'#a4e06a',30,220); sfx('splash'); }
+  } else if(S.phase==='land'){
+    S.land-=dt;
+    if(S.land<=0) finish('slide',Math.max(1,Math.min(3,Math.round(S.got/2))),S.got);
+  }
+}
+function drawSlideScene(){
+  sky(); meadow();
+  // 梯子
+  line(112,580,320,230,'#b96b42',10); line(172,580,380,230,'#b96b42',10);
+  for(let i=0;i<6;i++) rr(120+i*34-30,560-i*55-7,64,14,5,'#e58b56',LINE,4);
+  // 平台
+  rr(300,222,210,24,8,'#f4a15c',LINE,5);
+  // 滑道
+  ctx.beginPath();
+  for(let i=0;i<=24;i++){ const q=slidePos(i/24); i?ctx.lineTo(q.x,q.y):ctx.moveTo(q.x,q.y); }
+  ctx.strokeStyle='#4f9fd8'; ctx.lineWidth=54; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.stroke();
+  ctx.strokeStyle='#bfeaff'; ctx.lineWidth=34; ctx.stroke();
+  ctx.strokeStyle='#eaf9ff'; ctx.lineWidth=8; ctx.stroke();
+  // 支柱
+  line(560,354,560,610,'#c58050',12); line(790,498,790,650,'#c58050',12);
+  bush(990,620,1.15); bush(1070,630,.9,'#6ac35a');
+  // 星星
+  S.items.forEach(it=>{ if(!it.got){ const q=slidePos(it.p); star(q.x,q.y-58-Math.sin(t*4+it.p*9)*8,20,'#ffd447'); } });
+  // 角色
+  if(S.phase==='climb'){
+    const x=136+S.climb*5*34, y=560-S.climb*5*55;
+    pig(x,y,.68,PEPPA,{pose:'climb'});
+  } else {
+    const q=slidePos(Math.max(0,S.p));
+    pig(q.x,q.y-70+S.jumpY,.68,PEPPA,{pose:S.jumpY<-5?'cheer':'idle'});
+  }
+  if(S.phase==='climb'){
+    rr(400,112,480,86,30,'rgba(255,255,255,.94)',LINE,5);
+    text('点一下往上爬！爬到顶就滑下去',640,140,27,LINE);
+    rr(438,171,404,16,8,'#e6e2d8',null);
+    rr(440,173,400*S.climb,12,6,'#ffb43f',null);
+  } else if(S.phase==='slide'){
+    textOut('咻——！',VW/2,140,60,'#fff','#f39a3d',undefined,10);
+    text('再点一下可以跳起来',VW/2,200,25,'#fff','center',800);
+  } else textOut('落到软软的草地上！',VW/2,150,50,'#fff','#6ac46a',undefined,10);
+  rr(32,96,290,64,26,'#fffdf5',LINE,5);
+  text('小星星：'+S.got+' / 5',177,128,26,LINE);
+  topBar('滑滑梯',true);
+  drawParts();
+}
+
+/* =========================================================================
+   4. 溜冰场：跳过雪人和路障，收集雪花
+   ========================================================================= */
+let K=null;
+function skateReset(){
+  K={time:30,jumpY:0,vy:0,got:0,hits:0,invul:0,items:[{x:VW+200,bob:0}],obs:[{x:VW+600,type:'snow'}],speed:300};
+}
+function lastX(arr){ return arr.length ? arr[arr.length-1].x : 0; }
+function updateSkate(dt){
+  K.time-=dt; K.invul=Math.max(0,K.invul-dt);
+  if(P.pressed && K.jumpY>=-1){ K.vy=-560; sfx('boing'); }
+  K.vy+=1650*dt; K.jumpY+=K.vy*dt;
+  if(K.jumpY>0){ K.jumpY=0; K.vy=0; }
+  const step=K.speed*dt;
+  K.items.forEach(it=>{ it.x-=step; it.bob+=dt*5; });
+  K.obs.forEach(o=>{ o.x-=step; });
+  K.items=K.items.filter(it=>it.x>-80);
+  K.obs=K.obs.filter(o=>o.x>-80);
+  if(lastX(K.items)<VW+260) K.items.push({x:lastX(K.items)+260+Math.random()*220,bob:Math.random()*6});
+  if(lastX(K.obs)<VW+520) K.obs.push({x:lastX(K.obs)+520+Math.random()*300,type:Math.random()<.5?'snow':'cone'});
+  K.items.forEach(it=>{
+    if(!it.got && Math.abs(it.x-340)<52 && K.jumpY>-120){
+      it.got=true; K.got++; sfx('star'); burst(340,510,'#fff',12,140);
+    }
+  });
+  K.items=K.items.filter(it=>!it.got);
+  K.obs.forEach(o=>{
+    if(!o.hit && Math.abs(o.x-340)<58 && K.jumpY>-70 && K.invul<=0){
+      o.hit=true; K.hits++; K.invul=.9; sfx('boing'); burst(340,600,'#fff7d0',14,160);
+    }
+  });
+  if(K.time<=0) finish('skate',K.got>=8?3:K.got>=4?2:1,K.got);
+}
+function snowflake(x,y,r){
+  ctx.save(); ctx.translate(x,y);
+  for(let i=0;i<6;i++){ ctx.rotate(Math.PI/3); line(0,0,0,-r,'#fff',5); line(0,-r*.6,-6,-r*.8,'#fff',3); line(0,-r*.6,6,-r*.8,'#fff',3); }
+  ell(0,0,4,4,'#fff',null); ctx.restore();
+}
+function snowman(x,y,s){
+  ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+  ell(0,-78,46,44,'#fff',LINE,5); ell(0,-28,32,30,'#fff',LINE,5);
+  ell(-14,-84,5,6,LINE,null); ell(14,-84,5,6,LINE,null);
+  poly([[0,-74],[34,-69],[0,-64]],'#ff9d3c',LINE,2);
+  rr(-38,-126,76,12,5,'#e35b6e',LINE,3); rr(-24,-142,48,18,8,'#e35b6e',LINE,3);
+  ctx.restore();
+}
+function cone(x,y,s){
+  ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+  rr(-30,-12,60,14,5,'#e26b4f',LINE,4);
+  poly([[0,-88],[-26,-12],[26,-12]],'#ff884f',LINE,4);
+  poly([[-15,-40],[15,-40],[19,-25],[-19,-25]],'#fff',null);
+  ctx.restore();
+}
+function drawSkateScene(){
+  ctx.fillStyle='#cdeeff'; ctx.fillRect(0,0,VW,VH);
+  sun(1100,105,44);
+  cloud(160+Math.sin(t*.2)*12,100,.9); cloud(700,80,.7);
+  hill(240,540,340,150,'#eaf7ff'); hill(900,535,380,160,'#e4f4ff');
+  for(let i=0;i<6;i++) tree(90+i*230+Math.sin(i)*40,548,.7,'#79c7a8');
+  // 冰面
+  rr(-30,558,VW+60,165,50,'#d9f2ff',LINE,6);
+  for(let i=0;i<12;i++){ const x=(i*173+t*K.speed*.25)%1400-60; line(x,590+(i%3)*32,x+52,590+(i%3)*32,'#fff',4); }
+  for(let i=0;i<18;i++){ const x=(i*97+t*60)%1300, y=100+(i*167)%400; ell(x,y,2.5,2.5,'#fff',null); }
+  // 速度线
+  for(let i=0;i<6;i++){ const y=420+i*28; line(80+((t*600+i*170)%300),y,140+((t*600+i*170)%300),y,'rgba(255,255,255,.8)',4); }
+  K.items.forEach(it=>{ if(!it.got) snowflake(it.x,510+Math.sin(it.bob)*10,20); });
+  K.obs.forEach(o=>{ if(o.type==='snow') snowman(o.x,620,1); else cone(o.x,620,1.15); });
+  pig(340,620+K.jumpY,.95,PEPPA,{pose:'skate',phase:1,still:true});
+  // 冰鞋
+  ell(320,622+K.jumpY,20,8,'#f3425c',LINE,3); ell(360,622+K.jumpY,20,8,'#f3425c',LINE,3);
+  topBar('溜冰场',true);
+  rr(30,96,300,58,24,'#fffdf5',LINE,5);
+  text('雪花 '+K.got+'    剩余 '+Math.max(0,Math.ceil(K.time))+' 秒',180,125,26,LINE);
+  if(K.invul>.5) textOut('小心！',VW/2,230,52,'#fff','#ec5c62',undefined,10);
+  drawParts();
+}
+
+/* =========================================================================
+   5. 采蘑菇：蘑菇冒头时点它，金蘑菇值两分
+   ========================================================================= */
+let M=null;
+const MSPOTS=[{x:200,y:580},{x:420,y:624},{x:630,y:566},{x:840,y:628},{x:1060,y:582},{x:740,y:666}];
+function mushReset(){ M={time:45,got:0,spawn:0,active:[],last:0}; }
+function rushMush(){
+  if(M.active.length>=3) return;
+  const free=MSPOTS.filter(s=>!M.active.some(a=>a.spot===s));
+  if(!free.length) return;
+  const spot=free[Math.floor(Math.random()*free.length)];
+  M.active.push({spot,life:1.6,age:0,golden:Math.random()<.22,done:false});
+}
+function updateMush(dt){
+  M.time-=dt; M.spawn-=dt;
+  if(M.spawn<=0){ rushMush(); M.spawn=.75+Math.random()*.7; }
+  M.active.forEach(a=>{ a.life-=dt; a.age+=dt; });
+  M.active=M.active.filter(a=>a.life>0);
+  if(P.pressed){
+    for(let i=M.active.length-1;i>=0;i--){
+      const a=M.active[i], s=a.spot;
+      if(Math.abs(P.x-s.x)<62 && Math.abs(P.y-(s.y-40))<72 && a.age>.12){
+        const v=a.golden?2:1;
+        M.got+=v; sfx('star');
+        burst(s.x,s.y-45,a.golden?'#ffd447':'#ff8d84',14,170);
+        M.active.splice(i,1); break;
+      }
+    }
+  }
+  if(M.time<=0) finish('mush',M.got>=12?3:M.got>=7?2:1,M.got);
+}
+function drawMushroom(x,y,s,golden){
+  ctx.save(); ctx.translate(x,y); ctx.scale(s,s);
+  rr(-11,-13,22,26,7,'#fff8e8',LINE,4);
+  ell(0,-18,34,23,golden?'#ffd447':'#e75b52',LINE,5);
+  ell(-13,-24,6,6,'#fff',null); ell(11,-28,7,6,'#fff',null);
+  ctx.restore();
+}
+function drawMushScene(){
+  sky(); meadow();
+  for(let i=0;i<4;i++) tree(60+i*380,560,.85,i%2?'#6cc86a':'#7bd273');
+  for(let i=0;i<7;i++) bush(100+i*190,650,.75,i%2?'#5cbd53':'#69c95e');
+  // 小土坑
+  MSPOTS.forEach(s=>ell(s.x,s.y+9,44,14,'#6bb752',null));
+  M.active.forEach(a=>{
+    const s=a.spot, grow=Math.min(1,a.age*6)*(a.life<.35?a.life/.35:1);
+    drawMushroom(s.x,s.y-8,grow*1.1,a.golden);
+    if(a.golden) star(s.x,s.y-92,14,'#ffd447',t*2);
+  });
+  // 篮子
+  ctx.save(); ctx.translate(1140,588);
+  poly([[-64,0],[64,0],[48,74],[-48,74]],'#d79a5a',LINE,5);
+  line(-44,16,44,16,'#b87b48',5); line(-38,42,38,42,'#b87b48',5);
+  ctx.beginPath(); ctx.arc(0,4,64,Math.PI,0); ctx.strokeStyle=LINE; ctx.lineWidth=7; ctx.stroke();
+  ctx.restore();
+  text('× '+M.got,1140,690,30,'#fff','center',900);
+  topBar('采蘑菇',true);
+  rr(30,96,420,58,24,'#fffdf5',LINE,5);
+  text('点冒出来的蘑菇！金色 +2',240,125,24,LINE);
+  rr(30,168,420,20,10,'#e8e4d9',null);
+  rr(32,170,416*Math.max(0,M.time/45),16,8,M.time<10?'#f16a5c':'#6ac46a',null);
+  drawParts();
+}
+
+/* =========================================================================
+   6. 调度与主循环
+   ========================================================================= */
+function globalUI(){
+  UI_HIT=false;
+  if(scene==='title'||scene==='hub'||scene==='result') return;
+  if(!P.pressed) return;
+  if(P.x<112 && P.y<86){ UI_HIT=true; sfx('tap'); P.pressed=false; go('hub'); }
+  else if(P.x>VW-126 && P.y<86){ UI_HIT=true; toggleSound(); P.pressed=false; }
+}
+let UI_HIT=false;
+function update(dt){
+  if(flash>0) flash=Math.max(0,flash-dt*3.2);
+  updateParts(dt);
+  globalUI();
+  if(scene==='fish') updateFish(dt);
+  if(scene==='tug') updateTug(dt);
+  if(scene==='slide') updateSlide(dt);
+  if(scene==='skate') updateSkate(dt);
+  if(scene==='mush') updateMush(dt);
+}
+function render(){
+  ctx.setTransform(DPR*scale,0,0,DPR*scale,offX*DPR,offY*DPR);
+  ctx.fillStyle='#8fd8ff'; ctx.fillRect(0,0,VW,VH);
+  ctx.save(); ctx.beginPath(); ctx.rect(0,0,VW,VH); ctx.clip();
+  if(scene==='title') drawTitle();
+  else if(scene==='hub') drawHub();
+  else if(scene==='result') drawResult();
+  else if(scene==='fish') drawFishScene();
+  else if(scene==='tug') drawTugScene();
+  else if(scene==='slide') drawSlideScene();
+  else if(scene==='skate') drawSkateScene();
+  else if(scene==='mush') drawMushScene();
+  if(flash>0){ ctx.globalAlpha=flash*.75; ctx.fillStyle='#fff'; ctx.fillRect(0,0,VW,VH); ctx.globalAlpha=1; }
+  ctx.restore();
+}
+let last=0;
+function frame(now){
+  const dt=Math.min(.05,(now-last)/1000||0); last=now; t+=dt;
+  try { update(dt); render(); }
+  catch(err){
+    const f=document.getElementById('fatal');
+    f.style.display='block'; f.textContent='出错了：'+(err&&err.stack||err);
+    console.error(err);
+  }
+  P.pressed=false; P.released=false;
+  requestAnimationFrame(frame);
+}
+resize(); fishReset(); tugReset(); slideReset(); skateReset(); mushReset();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
